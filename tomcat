@@ -1,0 +1,96 @@
+---
+# Install JDK
+- name: Install JDK
+  apt:
+    name: default-jdk
+    state: present
+
+# Create tomcat group and user
+- name: Create tomcat group
+  group:
+    name: tomcat
+    state: present
+
+- name: Create tomcat user
+  user:
+    name: tomcat
+    group: tomcat
+    shell: /bin/false
+    home: /opt/tomcat
+    create_home: no
+
+# Download Apache Tomcat
+- name: Download Apache Tomcat
+  get_url:
+    url: http://redrockdigimark.com/apachemirror/tomcat/tomcat-8/v8.5.31/bin/apache-tomcat-8.5.31.tar.gz
+    dest: /tmp/apache-tomcat-8.5.31.tar.gz
+
+# Extract Apache Tomcat
+- name: Extract Apache Tomcat
+  unarchive:
+    src: /tmp/apache-tomcat-8.5.31.tar.gz
+    dest: /opt/tomcat
+    remote_src: yes
+    extra_opts:
+      - --strip-components=1
+
+# Set permissions
+- name: Set Tomcat group permissions
+  file:
+    path: /opt/tomcat
+    group: tomcat
+    recurse: yes
+    mode: 'g+r'
+
+- name: Set execute permissions for conf directory
+  file:
+    path: /opt/tomcat/conf
+    mode: 'g+x'
+
+- name: Set ownership for webapps, work, temp, and logs directories
+  file:
+    path: "{{ item }}"
+    owner: tomcat
+    group: tomcat
+    recurse: yes
+  with_items:
+    - /opt/tomcat/webapps
+    - /opt/tomcat/work
+    - /opt/tomcat/temp
+    - /opt/tomcat/logs
+
+# Create Tomcat service
+- name: Create Tomcat service file
+  copy:
+    dest: /etc/systemd/system/tomcat.service
+    content: |
+      [Unit]
+      Description=Apache Tomcat Web Application Container
+      After=network.target
+      [Service]
+      Type=forking
+      Environment=JAVA_HOME=/usr/lib/jvm/java-1.8.0-openjdk-amd64/jre
+      Environment=CATALINA_PID=/opt/tomcat/temp/tomcat.pid
+      Environment=CATALINA_HOME=/opt/tomcat
+      Environment=CATALINA_BASE=/opt/tomcat
+      Environment='CATALINA_OPTS=-Xms512M -Xmx1024M -server -XX:+UseParallelGC'
+      Environment='JAVA_OPTS=-Djava.awt.headless=true -Djava.security.egd=file:/dev/./urandom'
+      ExecStart=/opt/tomcat/bin/startup.sh
+      ExecStop=/opt/tomcat/bin/shutdown.sh
+      User=tomcat
+      Group=tomcat
+      UMask=0007
+      RestartSec=10
+      Restart=always
+      [Install]
+      WantedBy=multi-user.target
+
+# Reload systemd and start Tomcat
+- name: Reload systemd
+  command: systemctl daemon-reload
+
+- name: Start Tomcat service
+  service:
+    name: tomcat
+    state: started
+    enabled: yes
