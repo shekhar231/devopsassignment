@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: drupal-website
+spec:
+  replicas: 3  # Number of pods (containers) you want to run
+  selector:
+    matchLabels:
+      app: drupal-website
+  template:
+    metadata:
+      labels:
+        app: drupal-website
+    spec:
+      containers:
+        - name: drupal-website
+          image: <your-dockerhub-username>/drupal-website:latest  # Use the image you pushed
+          ports:
+            - containerPort: 80
+          volumeMounts:
+            - name: drupal-data
+              mountPath: /usr/local/apache2/htdocs/
+      volumes:
+        - name: drupal-data
+          persistentVolumeClaim:
+            claimName: drupal-pvc  # We will create the PVC next
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: drupal-website-service
+spec:
+  selector:
+    app: drupal-website
+  ports:
+    - protocol: TCP
+      port: 80   # Port exposed to external traffic
+      targetPort: 80
+  type: LoadBalancer  # Expose the service externally
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: drupal-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi  # Specify the volume size
